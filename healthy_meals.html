@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scan&Cook</title>
+    <!-- Utilizzo di Tailwind CSS per uno stile moderno e reattivo -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #4ade80;
+            animation: spin 1s ease infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4 md:p-8">
+
+    <!-- Contenitore principale dell'app -->
+    <div class="bg-white p-6 md:p-10 rounded-3xl shadow-2xl w-full max-w-2xl relative text-center">
+        <!-- Contenitore per i pulsanti di lingua e ID utente -->
+        <div class="flex justify-between items-center mb-4">
+            <div id="user-info" class="text-xs text-gray-500"></div>
+            <div class="flex space-x-2">
+                <button onclick="switchLanguage('it')" class="text-sm px-3 py-1 rounded-full border border-gray-300 text-gray-700 hover:bg-gray-200 transition-colors duration-200">Italiano</button>
+                <button onclick="switchLanguage('en')" class="text-sm px-3 py-1 rounded-full border border-gray-300 text-gray-700 hover:bg-gray-200 transition-colors duration-200">English</button>
+            </div>
+        </div>
+
+        <h1 id="app-title" class="text-3xl md:text-4xl font-bold text-gray-800 mb-2">Scan&Cook</h1>
+        <p id="app-description" class="text-gray-600 mb-8">Carica una foto dei tuoi ingredienti o inseriscili manualmente.</p>
+
+        <!-- Input per l'immagine -->
+        <div class="flex flex-col items-center justify-center gap-4 mb-8">
+            <label id="upload-label" for="file-upload" class="cursor-pointer w-full md:w-auto px-6 py-3 bg-green-600 text-white font-semibold rounded-xl shadow-lg hover:bg-green-700 transition-colors duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2">
+                Carica Foto degli Ingredienti
+            </label>
+            <input id="file-upload" type="file" accept="image/*" class="hidden" onchange="findRecipesFromImage(this.files)">
+        </div>
+
+        <div class="flex items-center my-6">
+            <hr class="flex-grow border-t border-gray-300">
+            <span id="or-separator" class="mx-4 text-gray-500 font-semibold">OPPURE</span>
+            <hr class="flex-grow border-t border-gray-300">
+        </div>
+
+        <!-- Input per testo -->
+        <div class="flex flex-col items-center justify-center gap-4 mb-8">
+            <textarea id="ingredient-text-input" rows="4" placeholder="Inserisci i tuoi ingredienti qui, separati da una virgola (es. pollo, pomodoro, cipolla)" class="w-full p-4 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-200"></textarea>
+            <button id="find-recipes-text-btn" class="w-full md:w-auto px-6 py-3 bg-green-600 text-white font-semibold rounded-xl shadow-lg hover:bg-green-700 transition-colors duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2">
+                Trova Ricette
+            </button>
+        </div>
+
+        <!-- Area per il caricamento e i risultati -->
+        <div id="loading-container" class="flex flex-col items-center justify-center hidden">
+            <div class="spinner mb-4"></div>
+            <p id="loading-text" class="text-gray-500">Analizzo i tuoi ingredienti...</p>
+        </div>
+
+        <div id="results-container" class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+            <!-- Le schede delle ricette verranno inserite qui dal JavaScript -->
+        </div>
+
+        <!-- Visualizzazione dell'immagine caricata -->
+        <img id="preview-image" src="#" alt="Anteprima immagine" class="hidden mt-8 max-w-full h-auto rounded-xl shadow-md mx-auto">
+
+        <!-- Sezione per le ricette salvate -->
+        <hr class="my-10 border-gray-300">
+        <h2 id="saved-recipes-title" class="text-2xl md:text-3xl font-bold text-gray-800 mb-6">Ricette Salvate</h2>
+        <div id="saved-recipes-container" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <p id="no-saved-recipes" class="text-gray-500 text-center col-span-2">Nessuna ricetta salvata. Salva le tue ricette preferite per vederle qui!</p>
+        </div>
+    </div>
+
+    <!-- Modale per visualizzare i dettagli della ricetta -->
+    <div id="recipe-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4">
+        <div class="bg-white p-6 md:p-8 rounded-3xl shadow-2xl w-full max-w-xl relative transform scale-95 opacity-0 transition-all duration-300 ease-out">
+            <button onclick="closeModal()" class="absolute top-4 right-4 text-gray-500 hover:text-gray-800 transition-colors duration-300 text-3xl font-bold">&times;</button>
+            <h2 id="modal-title" class="text-2xl md:text-3xl font-bold text-gray-800 mb-4 text-left"></h2>
+            <div class="text-left text-gray-700">
+                <h3 id="modal-ingredients-label" class="text-xl font-semibold mb-2">Ingredienti:</h3>
+                <ul id="modal-ingredients" class="list-disc list-inside mb-4"></ul>
+                <h3 id="modal-instructions-label" class="text-xl font-semibold mb-2">Preparazione:</h3>
+                <p id="modal-instructions" class="leading-relaxed"></p>
+                <button id="save-recipe-btn" class="mt-4 w-full md:w-auto px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl shadow-lg hover:bg-blue-700 transition-colors duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">Salva Ricetta</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modale per l'upgrade premium -->
+    <div id="premium-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4">
+        <div class="bg-white p-6 md:p-8 rounded-3xl shadow-2xl w-full max-w-sm relative text-center">
+            <h2 id="premium-title" class="text-2xl font-bold text-gray-800 mb-4">Sblocca il Potenziale Completo</h2>
+            <p id="premium-message" class="text-gray-600 mb-6">Hai raggiunto il limite giornaliero di ricette gratuite. Sblocca ricette illimitate e salva i tuoi pasti preferiti con la versione Premium!</p>
+            <button id="buy-premium-btn" class="w-full px-6 py-3 bg-green-600 text-white font-semibold rounded-xl shadow-lg hover:bg-green-700 transition-colors duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2">Acquista Premium per 0.99 €</button>
+            <button onclick="closePremiumModal()" class="mt-4 w-full text-gray-500 hover:text-gray-800 transition-colors duration-300">No, grazie</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, query, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        
+        // Log di debug di Firestore
+        setLogLevel('debug');
+        
+        // Variabili globali fornite dall'ambiente
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let db, auth;
+        let userId = null;
+        let currentRecipe = null;
+        const FREE_RECIPE_LIMIT = 3;
+        let recipesUsedToday = 0;
+        let isPremium = false;
+
+        const API_KEY = "";
+        const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${API_KEY}`;
+        const resultsContainer = document.getElementById('results-container');
+        const loadingContainer = document.getElementById('loading-container');
+        const previewImage = document.getElementById('preview-image');
+        const modal = document.getElementById('recipe-modal');
+        const modalTitle = document.getElementById('modal-title');
+        const modalIngredients = document.getElementById('modal-ingredients');
+        const modalInstructions = document.getElementById('modal-instructions');
+        const ingredientTextInput = document.getElementById('ingredient-text-input');
+        const findRecipesTextBtn = document.getElementById('find-recipes-text-btn');
+        const savedRecipesContainer = document.getElementById('saved-recipes-container');
+        const noSavedRecipesText = document.getElementById('no-saved-recipes');
+        const saveRecipeBtn = document.getElementById('save-recipe-btn');
+        const premiumModal = document.getElementById('premium-modal');
+        const buyPremiumBtn = document.getElementById('buy-premium-btn');
+
+        let currentLanguage = 'it'; // Lingua predefinita
+
+        const translations = {
+            it: {
+                appTitle: 'Scan&Cook',
+                appDescription: 'Carica una foto dei tuoi ingredienti o inseriscili manualmente.',
+                uploadLabel: 'Carica Foto degli Ingredienti',
+                orSeparator: 'OPPURE',
+                inputPlaceholder: 'Inserisci i tuoi ingredienti qui, separati da una virgola (es. pollo, pomodoro, cipolla)',
+                findRecipesBtn: 'Trova Ricette',
+                loadingText: 'Analizzo i tuoi ingredienti...',
+                noRecipesFound: 'Nessuna ricetta trovata con gli ingredienti forniti. Prova con ingredienti diversi!',
+                httpError: 'Si è verificato un errore durante l\'analisi. Riprova più tardi.',
+                clickForDetails: 'Clicca per i dettagli',
+                modalIngredientsLabel: 'Ingredienti:',
+                modalInstructionsLabel: 'Preparazione:',
+                noFileSelected: 'Nessun file selezionato.',
+                noIngredientsEntered: 'Per favore, inserisci almeno un ingrediente.',
+                aiImagePrompt: "Basandoti sugli ingredienti che vedi in questa immagine, suggerisci almeno 4 ricette semplici e a basso contenuto di grassi. Rispondi in italiano.",
+                aiTextPrompt: (ingredients) => `Basandoti su questo elenco di ingredienti: ${ingredients}, suggerisci almeno 4 ricette semplici e a basso contenuto di grassi. Rispondi in italiano.`,
+                savedRecipesTitle: 'Ricette Salvate',
+                noSavedRecipes: 'Nessuna ricetta salvata. Salva le tue ricette preferite per vederle qui!',
+                saveRecipeBtn: 'Salva Ricetta',
+                recipeSaved: 'Ricetta salvata con successo!',
+                premiumTitle: 'Sblocca il Potenziale Completo',
+                premiumMessage: 'Hai raggiunto il limite giornaliero di ricette gratuite. Sblocca ricette illimitate e salva i tuoi pasti preferiti con la versione Premium!',
+                buyPremiumBtn: 'Acquista Premium per 0.99 €',
+                dailyLimitReached: 'Limite giornaliero di ricette raggiunto. Aggiorna a Premium per continuare!'
+            },
+            en: {
+                appTitle: 'Scan&Cook',
+                appDescription: 'Upload a photo of your ingredients or enter them manually.',
+                uploadLabel: 'Upload Photo of Ingredients',
+                orSeparator: 'OR',
+                inputPlaceholder: 'Enter your ingredients here, separated by a comma (e.g. chicken, tomato, onion)',
+                findRecipesBtn: 'Find Recipes',
+                loadingText: 'Analyzing your ingredients...',
+                noRecipesFound: 'No recipes found with the ingredients provided. Try different ingredients!',
+                httpError: 'An error occurred during the analysis. Please try again later.',
+                clickForDetails: 'Click for details',
+                modalIngredientsLabel: 'Ingredients:',
+                modalInstructionsLabel: 'Instructions:',
+                noFileSelected: 'No file selected.',
+                noIngredientsEntered: 'Please enter at least one ingredient.',
+                aiImagePrompt: "Based on the ingredients you see in this image, suggest at least 4 simple, low-fat recipes. Respond in English.",
+                aiTextPrompt: (ingredients) => `Based on this list of ingredients: ${ingredients}, suggest at least 4 simple, low-fat recipes. Respond in English.`,
+                savedRecipesTitle: 'Saved Recipes',
+                noSavedRecipes: 'No recipes saved. Save your favorite recipes to see them here!',
+                saveRecipeBtn: 'Save Recipe',
+                recipeSaved: 'Recipe saved successfully!',
+                premiumTitle: 'Unlock Full Potential',
+                premiumMessage: 'You have reached the daily limit of free recipes. Unlock unlimited recipes and save your favorite meals with the Premium version!',
+                buyPremiumBtn: 'Buy Premium for 0.99 €',
+                dailyLimitReached: 'Daily recipe limit reached. Upgrade to Premium to continue!'
+            }
+        };
+
+        // Funzione per inizializzare Firebase
+        async function initializeFirebase() {
+            try {
+                const app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        document.getElementById('user-info').textContent = `User ID: ${userId}`;
+                        // Ascolta le ricette salvate solo dopo l'autenticazione
+                        listenForSavedRecipes();
+                    } else {
+                        // Se non c'è un token, esegui l'accesso anonimo
+                        if (initialAuthToken) {
+                            await signInWithCustomToken(auth, initialAuthToken);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    }
+                });
+            } catch (e) {
+                console.error("Errore nell'inizializzazione di Firebase: ", e);
+            }
+        }
+        
+        // Funzione per ascoltare i cambiamenti nelle ricette salvate
+        function listenForSavedRecipes() {
+            if (!db || !userId) return;
+
+            const q = collection(db, `artifacts/${appId}/users/${userId}/saved_recipes`);
+            onSnapshot(q, (querySnapshot) => {
+                savedRecipesContainer.innerHTML = '';
+                const recipes = [];
+                querySnapshot.forEach((doc) => {
+                    recipes.push(doc.data());
+                });
+
+                if (recipes.length === 0) {
+                    noSavedRecipesText.classList.remove('hidden');
+                } else {
+                    noSavedRecipesText.classList.add('hidden');
+                    recipes.forEach(recipe => {
+                        const recipeCard = document.createElement('div');
+                        recipeCard.className = "bg-white p-6 rounded-2xl shadow-lg border border-gray-200 transition-transform duration-300 transform hover:scale-105 cursor-pointer text-left";
+                        recipeCard.innerHTML = `
+                            <h3 class="text-xl font-bold text-green-700 mb-2">${recipe.name}</h3>
+                            <p class="text-gray-500 text-sm">${translations[currentLanguage].clickForDetails}</p>
+                        `;
+                        recipeCard.onclick = () => displayRecipeDetails(recipe, currentLanguage);
+                        savedRecipesContainer.appendChild(recipeCard);
+                    });
+                }
+            });
+        }
+        
+        // Funzione per salvare una ricetta su Firestore
+        async function saveRecipe(recipe) {
+            if (!db || !userId) {
+                showMessage('Errore: Utente non autenticato.');
+                return;
+            }
+            try {
+                const docRef = await addDoc(collection(db, `artifacts/${appId}/users/${userId}/saved_recipes`), recipe);
+                showMessage(translations[currentLanguage].recipeSaved);
+            } catch (e) {
+                console.error("Errore durante l'aggiunta del documento: ", e);
+                showMessage('Si è verificato un errore durante il salvataggio della ricetta.');
+            }
+        }
+        
+        saveRecipeBtn.onclick = () => {
+            if (currentRecipe) {
+                saveRecipe(currentRecipe);
+            }
+        };
+
+        function switchLanguage(lang) {
+            currentLanguage = lang;
+            const t = translations[lang];
+
+            // Aggiorna gli elementi dell'interfaccia
+            document.getElementById('app-title').textContent = t.appTitle;
+            document.getElementById('app-description').textContent = t.appDescription;
+            document.getElementById('upload-label').textContent = t.uploadLabel;
+            document.getElementById('or-separator').textContent = t.orSeparator;
+            ingredientTextInput.placeholder = t.inputPlaceholder;
+            findRecipesTextBtn.textContent = t.findRecipesBtn;
+            document.getElementById('loading-text').textContent = t.loadingText;
+            document.getElementById('modal-ingredients-label').textContent = t.modalIngredientsLabel;
+            document.getElementById('modal-instructions-label').textContent = t.modalInstructionsLabel;
+            document.getElementById('saved-recipes-title').textContent = t.savedRecipesTitle;
+            document.getElementById('no-saved-recipes').textContent = t.noSavedRecipes;
+            saveRecipeBtn.textContent = t.saveRecipeBtn;
+            document.getElementById('premium-title').textContent = t.premiumTitle;
+            document.getElementById('premium-message').textContent = t.premiumMessage;
+            document.getElementById('buy-premium-btn').textContent = t.buyPremiumBtn;
+        }
+
+        // Funzione per visualizzare una modale di messaggio personalizzata
+        function showMessage(message, duration = 3000) {
+            const messageBox = document.createElement('div');
+            messageBox.className = "fixed bottom-5 left-1/2 transform -translate-x-1/2 px-6 py-3 bg-gray-800 text-white rounded-full shadow-lg transition-opacity duration-300 opacity-0";
+            messageBox.textContent = message;
+            document.body.appendChild(messageBox);
+
+            setTimeout(() => {
+                messageBox.classList.add('opacity-100');
+            }, 10);
+
+            setTimeout(() => {
+                messageBox.classList.remove('opacity-100');
+                setTimeout(() => messageBox.remove(), 300);
+            }, duration);
+        }
+
+        // Funzione per visualizzare la modale premium
+        function showPremiumModal() {
+            premiumModal.classList.remove('hidden');
+            premiumModal.style.display = 'flex';
+        }
+
+        // Funzione per chiudere la modale premium
+        function closePremiumModal() {
+            premiumModal.style.display = 'none';
+        }
+
+        // Segnaposto per la logica di acquisto premium
+        buyPremiumBtn.addEventListener('click', () => {
+            showMessage("Reindirizzamento alla pagina di pagamento...");
+            // Qui andrebbe la logica per reindirizzare a Stripe/PayPal
+        });
+
+        // Funzione generica per chiamare l'API e mostrare i risultati
+        async function fetchRecipes(promptParts, lang) {
+            if (!isPremium && recipesUsedToday >= FREE_RECIPE_LIMIT) {
+                showPremiumModal();
+                return;
+            }
+
+            resultsContainer.innerHTML = '';
+            loadingContainer.classList.remove('hidden');
+
+            try {
+                const payload = {
+                    contents: [
+                        {
+                            role: "user",
+                            parts: promptParts
+                        }
+                    ],
+                    generationConfig: {
+                        responseMimeType: "application/json",
+                        responseSchema: {
+                            type: "ARRAY",
+                            items: {
+                                type: "OBJECT",
+                                properties: {
+                                    "name": { "type": "STRING" },
+                                    "ingredients": {
+                                        "type": "ARRAY",
+                                        "items": { "type": "STRING" }
+                                    },
+                                    "instructions": { "type": "STRING" }
+                                },
+                                "propertyOrdering": ["name", "ingredients", "instructions"]
+                            }
+                        }
+                    }
+                };
+
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Errore HTTP: ${response.status}`);
+                }
+
+                const result = await response.json();
+                const recipes = JSON.parse(result.candidates?.[0]?.content?.parts?.[0]?.text || '[]');
+
+                if (recipes.length === 0) {
+                    resultsContainer.innerHTML = `<p class="text-gray-500 text-center">${translations[lang].noRecipesFound}</p>`;
+                } else {
+                    recipes.forEach(recipe => {
+                        const recipeCard = document.createElement('div');
+                        recipeCard.className = "bg-white p-6 rounded-2xl shadow-lg border border-gray-200 transition-transform duration-300 transform hover:scale-105 cursor-pointer text-left";
+                        recipeCard.innerHTML = `
+                            <h3 class="text-xl font-bold text-green-700 mb-2">${recipe.name}</h3>
+                            <p class="text-gray-500 text-sm">${translations[lang].clickForDetails}</p>
+                        `;
+                        recipeCard.onclick = () => displayRecipeDetails(recipe, lang);
+                        resultsContainer.appendChild(recipeCard);
+                    });
+                    if (!isPremium) {
+                        recipesUsedToday++;
+                    }
+                }
+            } catch (error) {
+                console.error('Errore:', error);
+                resultsContainer.innerHTML = `<p class="text-red-500 text-center">${translations[lang].httpError}</p>`;
+            } finally {
+                loadingContainer.classList.add('hidden');
+            }
+        }
+
+        // Funzione per trovare ricette dall'immagine
+        async function findRecipesFromImage(files) {
+            if (!files || files.length === 0) {
+                showMessage(translations[currentLanguage].noFileSelected);
+                return;
+            }
+            
+            // Nascondi l'input di testo quando si usa la foto
+            ingredientTextInput.value = '';
+
+            const file = files[0];
+            
+            // Mostra l'anteprima dell'immagine
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                previewImage.src = e.target.result;
+                previewImage.classList.remove('hidden');
+            };
+            reader.readAsDataURL(file);
+
+            // Converti l'immagine in base64
+            const base64Data = await new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result.split(',')[1]);
+                reader.readAsDataURL(file);
+            });
+            
+            const prompt = translations[currentLanguage].aiImagePrompt;
+            const promptParts = [
+                { text: prompt },
+                {
+                    inlineData: {
+                        mimeType: file.type,
+                        data: base64Data
+                    }
+                }
+            ];
+
+            fetchRecipes(promptParts, currentLanguage);
+        }
+
+        // Funzione per trovare ricette dal testo
+        async function findRecipesFromText() {
+            const ingredients = ingredientTextInput.value.trim();
+            if (!ingredients) {
+                showMessage(translations[currentLanguage].noIngredientsEntered);
+                return;
+            }
+            
+            // Nascondi l'anteprima dell'immagine
+            previewImage.classList.add('hidden');
+            
+            const prompt = translations[currentLanguage].aiTextPrompt(ingredients);
+            const promptParts = [{ text: prompt }];
+
+            fetchRecipes(promptParts, currentLanguage);
+        }
+        
+        // Collega il pulsante del testo alla sua funzione
+        findRecipesTextBtn.addEventListener('click', findRecipesFromText);
+
+        // Funzione per visualizzare i dettagli di una ricetta nella modale
+        function displayRecipeDetails(recipe, lang) {
+            currentRecipe = recipe;
+            modalTitle.textContent = recipe.name;
+            modalIngredients.innerHTML = recipe.ingredients.map(ing => `<li>${ing}</li>`).join('');
+            modalInstructions.textContent = recipe.instructions;
+            
+            // Aggiorna le etichette della modale
+            document.getElementById('modal-ingredients-label').textContent = translations[lang].modalIngredientsLabel;
+            document.getElementById('modal-instructions-label').textContent = translations[lang].modalInstructionsLabel;
+            saveRecipeBtn.textContent = translations[lang].saveRecipeBtn;
+
+            modal.style.display = 'flex';
+            setTimeout(() => {
+                const modalContent = modal.querySelector('div');
+                modalContent.classList.remove('scale-95', 'opacity-0');
+                modalContent.classList.add('scale-100', 'opacity-100');
+            }, 10); // Piccolo ritardo per l'animazione
+        }
+
+        // Funzione per chiudere la modale
+        function closeModal() {
+            const modalContent = modal.querySelector('div');
+            modalContent.classList.remove('scale-100', 'opacity-100');
+            modalContent.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => {
+                modal.style.display = 'none';
+            }, 300); // Abbina alla durata della transizione
+        }
+        
+        // Inizializza l'app all'avvio
+        initializeFirebase();
+        switchLanguage(currentLanguage);
+    </script>
+</body>
+</html>
